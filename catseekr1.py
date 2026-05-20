@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
+  #!/usr/bin/env python3
 """
-Single-file CAT R1 BitNet GUI - Edition R1.1.1A
+catr1.1.2a — single-file local assistant (stdlib + tkinter).
 
-Changes:
-- Re-monikered to CAT R1.1.1A Gemini Flash architecture blend profile.
-- files = off (no external model files, no runpy handoff, no network APIs)
-- Python 3.14-friendly stdlib-only build
-- GUI: ChatGPT-style layout (sidebar, tools, modes)
-- Code interpreter (auto-run Python, charts), Canvas draw + Canvas doc editor
-- Virtual file attach, user memory, multi-chat threads, regenerate/stop
-- Conversational heuristics for natural replies (offline, no cloud API)
-- Ternary BitLinear layers inside a causal transformer block structure.
+- files = off (no external checkpoints, no network APIs)
+- chat, code interpreter, canvas, document editor, terminal, memory
+- ternary transformer core (embedded bootstrap weights)
 """
 
 from __future__ import annotations
@@ -36,14 +30,15 @@ from datetime import datetime
 faulthandler.enable()
 os.environ.setdefault("TK_SILENCE_DEPRECATION", "1")
 
-WINDOW_TITLE = "AC HOLDINGS [C] 1999-2026 R1.1.1A Catseek"
-BOT_NAME = "CAT R1.1.1A GEMINI-FLASH-BIT"
-MODEL_NAME = "CAT R1.1.1A BitNet (Flash Config)"
+APP_NAME = "catr1.1.2a"
+WINDOW_TITLE = APP_NAME
+BOT_NAME = APP_NAME
+MODEL_NAME = APP_NAME
 FILES_ENABLED = False  # no external model checkpoints
-VIRTUAL_FILES_ENABLED = True  # in-memory paste/upload text (ChatGPT attach)
+VIRTUAL_FILES_ENABLED = True  # in-memory paste/upload text
 PYTHON_TARGET = "3.14"
 
-# ChatGPT-style tool modes
+# Tool modes
 MODE_CHAT = "chat"
 MODE_CODE = "code_interpreter"
 MODE_CANVAS = "canvas"
@@ -218,7 +213,7 @@ class ModelConfig:
         return self.d_model // self.n_heads
 
 
-class BitLinear:
+class TernaryLinear:
     def __init__(self, in_features: int, out_features: int, *, seed: int, threshold: float = 0.28, bias: bool = True) -> None:
         self.in_features = in_features
         self.out_features = out_features
@@ -290,10 +285,10 @@ class BitSelfAttention:
         self.num_heads = cfg.n_heads
         self.head_dim = cfg.head_dim
         self.score_scale = 1.0 / math.sqrt(max(1, self.head_dim))
-        self.q_proj = BitLinear(dim, dim, seed=seed + 11, threshold=thr, bias=False)
-        self.k_proj = BitLinear(dim, dim, seed=seed + 23, threshold=thr, bias=False)
-        self.v_proj = BitLinear(dim, dim, seed=seed + 37, threshold=thr, bias=False)
-        self.o_proj = BitLinear(dim, dim, seed=seed + 53, threshold=thr, bias=False)
+        self.q_proj = TernaryLinear(dim, dim, seed=seed + 11, threshold=thr, bias=False)
+        self.k_proj = TernaryLinear(dim, dim, seed=seed + 23, threshold=thr, bias=False)
+        self.v_proj = TernaryLinear(dim, dim, seed=seed + 37, threshold=thr, bias=False)
+        self.o_proj = TernaryLinear(dim, dim, seed=seed + 53, threshold=thr, bias=False)
 
     def forward(self, seq: list[list[float]]) -> list[list[float]]:
         q_all = self.q_proj.forward_seq(seq)
@@ -333,9 +328,9 @@ class BitFeedForward:
         dim = cfg.d_model
         hidden = cfg.ffn_dim
         thr = cfg.ternary_threshold
-        self.up_proj = BitLinear(dim, hidden, seed=seed + 101, threshold=thr)
-        self.gate_proj = BitLinear(dim, hidden, seed=seed + 211, threshold=thr)
-        self.down_proj = BitLinear(hidden, dim, seed=seed + 307, threshold=thr)
+        self.up_proj = TernaryLinear(dim, hidden, seed=seed + 101, threshold=thr)
+        self.gate_proj = TernaryLinear(dim, hidden, seed=seed + 211, threshold=thr)
+        self.down_proj = TernaryLinear(hidden, dim, seed=seed + 307, threshold=thr)
 
     def forward_vec(self, x: list[float]) -> list[float]:
         up = self.up_proj.forward_vec(x)
@@ -347,7 +342,7 @@ class BitFeedForward:
         return [self.forward_vec(x) for x in seq]
 
 
-class BitNetBlock:
+class CatrBlock:
     def __init__(self, cfg: ModelConfig, *, seed: int) -> None:
         self.norm1 = RMSNorm(cfg.d_model)
         self.attn = BitSelfAttention(cfg, seed=seed + 1000)
@@ -368,7 +363,7 @@ class BitNetBlock:
         return out
 
 
-class BitNetLM:
+class CatrLM:
     def __init__(self, cfg: ModelConfig, *, seed: int = 1337) -> None:
         self.cfg = cfg
         rnd = random.Random(seed)
@@ -376,9 +371,9 @@ class BitNetLM:
         for _ in range(cfg.vocab_size):
             self.token_embedding.append([(rnd.random() * 2.0 - 1.0) * 0.18 for _ in range(cfg.d_model)])
         self.positional = self._build_positional(cfg.context_size, cfg.d_model)
-        self.blocks = [BitNetBlock(cfg, seed=seed + 5000 * i) for i in range(cfg.n_layers)]
+        self.blocks = [CatrBlock(cfg, seed=seed + 5000 * i) for i in range(cfg.n_layers)]
         self.final_norm = RMSNorm(cfg.d_model)
-        self.lm_head = BitLinear(cfg.d_model, cfg.vocab_size, seed=seed + 9090, threshold=cfg.ternary_threshold, bias=False)
+        self.lm_head = TernaryLinear(cfg.d_model, cfg.vocab_size, seed=seed + 9090, threshold=cfg.ternary_threshold, bias=False)
 
     @staticmethod
     def _build_positional(length: int, dim: int) -> list[list[float]]:
@@ -459,12 +454,12 @@ class BigramPrior:
 
 
 STYLE_CORPUS = [
-    "Hi. The GUI is online. The local CAT R1.1.1A engine is fully ready.",
+    f"Hi. The GUI is online. {APP_NAME} is ready.",
     "Files are off. Everything runs in one Python file with tkinter and stdlib only.",
     "Ask for /profile or /model to inspect the architecture configuration.",
     "Give me the exact error line, the expected result, and the actual result.",
     "Here is a clean way to do it: keep the GUI simple, keep the model tiny, and keep the code readable.",
-    "The transformer stack uses ternary BitLinear layers mimicking distilled architectures.",
+    "The transformer stack uses ternary TernaryLinear layers mimicking distilled architectures.",
     "The attention path is causal, so each token only sees earlier tokens.",
     "The feed-forward path uses a gated nonlinear block and projects back to model width.",
     "Use small prompts for better local results.",
@@ -503,14 +498,62 @@ def _extract_python_code(text: str) -> str | None:
     return None
 
 
+@dataclass(slots=True)
+class InterpreterContext:
+    canvas_ops: list[dict] = field(default_factory=list)
+
+
+def _chart_bar_ops(labels: list[str], values: list[float], *, title: str = "") -> list[dict]:
+    ops: list[dict] = []
+    if title:
+        ops.append({"op": "text", "coords": [30, 16], "text": title[:60], "fill": "#ffffff"})
+    base_y, max_h = 240, 180
+    n = max(1, len(values))
+    bar_w = min(48, 360 // n)
+    vmax = max(values) if values else 1.0
+    for i, (lab, val) in enumerate(zip(labels, values)):
+        h = int((val / vmax) * max_h) if vmax else 0
+        x0 = 40 + i * (bar_w + 12)
+        ops.append({"op": "rect", "coords": [x0, base_y - h, x0 + bar_w, base_y], "outline": "#00d9ff", "width": 2})
+        ops.append({"op": "text", "coords": [x0, base_y + 6], "text": str(lab)[:8], "fill": "#888"})
+    return ops
+
+
+def _chart_line_ops(xs: list[float], ys: list[float], *, title: str = "") -> list[dict]:
+    if len(xs) < 2 or len(ys) < 2:
+        return []
+    ops: list[dict] = []
+    if title:
+        ops.append({"op": "text", "coords": [30, 16], "text": title[:60], "fill": "#ffffff"})
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    if xmax == xmin:
+        xmax = xmin + 1
+    if ymax == ymin:
+        ymax = ymin + 1
+
+    def map_pt(x: float, y: float) -> tuple[int, int]:
+        px = int(40 + (x - xmin) / (xmax - xmin) * 360)
+        py = int(240 - (y - ymin) / (ymax - ymin) * 180)
+        return px, py
+
+    pts: list[int] = []
+    for x, y in zip(xs, ys):
+        px, py = map_pt(x, y)
+        pts.extend([px, py])
+    ops.append({"op": "line", "coords": pts, "fill": "#ff6b9d", "width": 2})
+    return ops
+
+
 class PythonSandbox:
-    """Restricted in-process Python interpreter (ChatGPT/Gemini-style code runner)."""
+    """Restricted in-process Python code interpreter."""
 
-    MAX_CODE_CHARS = 4000
-    TIMEOUT_SEC = 4.0
+    MAX_CODE_CHARS = 8000
+    TIMEOUT_SEC = 8.0
 
-    def __init__(self) -> None:
+    def __init__(self, ctx: InterpreterContext | None = None) -> None:
         self._lock = threading.Lock()
+        self.ctx = ctx or InterpreterContext()
         self._allowed_builtins = {
             "abs": abs,
             "all": all,
@@ -536,6 +579,23 @@ class PythonSandbox:
             "zip": zip,
         }
 
+    def _chart_helpers(self) -> dict[str, object]:
+        ctx = self.ctx
+
+        def chart_bar(labels: list, values: list, title: str = "") -> None:
+            labs = [str(x) for x in labels]
+            vals = [float(x) for x in values]
+            ctx.canvas_ops.extend(_chart_bar_ops(labs, vals, title=title))
+            print(f"Bar chart ({len(vals)} bars) -> Canvas tab")
+
+        def chart_line(xs: list, ys: list, title: str = "") -> None:
+            ctx.canvas_ops.extend(
+                _chart_line_ops([float(x) for x in xs], [float(y) for y in ys], title=title)
+            )
+            print(f"Line chart ({len(xs)} points) -> Canvas tab")
+
+        return {"chart_bar": chart_bar, "chart_line": chart_line}
+
     def run(self, code: str) -> SandboxResult:
         code = (code or "").strip()
         if not code:
@@ -550,7 +610,14 @@ class PythonSandbox:
         result_box: list[SandboxResult] = []
 
         def target() -> None:
-            globs = {"__builtins__": dict(self._allowed_builtins), "__name__": "__sandbox__"}
+            globs = {
+                "__builtins__": dict(self._allowed_builtins),
+                "__name__": "__sandbox__",
+                "math": math,
+                "json": json,
+                "statistics": statistics,
+            }
+            globs.update(self._chart_helpers())
             locs: dict[str, object] = {}
             try:
                 with redirect_stdout(out_buf), redirect_stderr(err_buf):
@@ -569,7 +636,7 @@ class PythonSandbox:
         return result_box[0] if result_box else SandboxResult("", "Sandbox failed to start.", 1)
 
     def format_result(self, result: SandboxResult) -> str:
-        parts = ["**Python sandbox**"]
+        parts = ["**Code interpreter**"]
         if result.stdout.strip():
             parts.append("```\n" + result.stdout.rstrip() + "\n```")
         if result.stderr.strip():
@@ -631,7 +698,7 @@ class TerminalSandbox:
 
 
 class CanvasWorkspace:
-    """Gemini/ChatGPT-style drawable canvas (tkinter renders ops)."""
+    """Drawable canvas workspace (tkinter renders ops)."""
 
     WIDTH = 420
     HEIGHT = 280
@@ -655,7 +722,7 @@ class CanvasWorkspace:
                     {"op": "rect", "coords": [20, 20, 400, 260], "outline": "#333355", "width": 2},
                     {"op": "line", "coords": [40, 200, 380, 60], "fill": "#00d9ff", "width": 3},
                     {"op": "oval", "coords": [120, 80, 220, 180], "outline": "#ff6b9d", "width": 2},
-                    {"op": "text", "coords": [50, 40], "text": "CAT R1 Canvas", "fill": "#00ffaa"},
+                    {"op": "text", "coords": [50, 40], "text": APP_NAME, "fill": "#00ffaa"},
                 ]
             )
             return "Canvas demo drawn. Open the Canvas tab to view.", list(self.ops)
@@ -703,7 +770,7 @@ def _render_canvas(canvas: object, ops: list[dict]) -> None:
 
 
 class ConversationalHeuristics:
-    """Natural-language replies (Gemini/ChatGPT-style) without the tiny LM."""
+    """Natural-language replies without the tiny LM."""
 
     JOKES = [
         "Why do programmers prefer dark mode? Because light attracts bugs.",
@@ -726,14 +793,13 @@ class ConversationalHeuristics:
             return "I am running locally and ready. How can I help you today?"
         if any(q in pl for q in ("who are you", "what are you", "your name")):
             return (
-                f"I am {BOT_NAME}, a single-file local assistant with a BitNet core, "
-                "a Python sandbox, a terminal tab, and a drawable canvas. No cloud API required."
+                f"I am {APP_NAME}, a single-file local assistant with a Python sandbox, "
+                "terminal, canvas, and document editor. No cloud API required."
             )
         if any(q in pl for q in ("what can you do", "capabilities", "features", "help me")):
             return (
-                "I can chat in plain language, run Python in a sandbox, use the terminal tab "
-                "(`help`, `python print(1)`, `canvas demo`), draw on the canvas, and answer "
-                "simple math. Try `/help` or open the Terminal / Python / Canvas tabs."
+                f"{APP_NAME} tools: chat, code interpreter (Python + charts), canvas draw, "
+                "document editor, terminal, virtual files, memory, multi-chat, modes. Type `/help`."
             )
         if "joke" in pl:
             return random.choice(cls.JOKES)
@@ -791,7 +857,7 @@ class ConversationThread:
 
 
 class ConversationStore:
-    """ChatGPT-style multi-chat sidebar."""
+    """Multi-chat sidebar."""
 
     def __init__(self) -> None:
         self.threads: dict[str, ConversationThread] = {}
@@ -815,12 +881,12 @@ class ConversationStore:
 
 
 class CanvasDocument:
-    """ChatGPT Canvas: collaborative document / code draft pane."""
+    """Document canvas: collaborative draft pane."""
 
     def __init__(self) -> None:
         self.text = (
             "# Canvas document\n\n"
-            "Use this pane like ChatGPT Canvas: draft essays, code, or notes.\n"
+            "Draft essays, code, or notes here.\n"
             "Say **open canvas** or `/doc show` to focus here.\n"
         )
 
@@ -841,7 +907,7 @@ class CanvasDocument:
 
 
 class VirtualFileStore:
-    """In-memory file attach (ChatGPT upload without disk)."""
+    """In-memory file attach (no disk)."""
 
     def __init__(self) -> None:
         self.files: dict[str, str] = {}
@@ -871,7 +937,7 @@ class VirtualFileStore:
 
 
 class UserMemory:
-    """ChatGPT memory: lightweight facts from chat."""
+    """User memory: lightweight facts from chat."""
 
     def __init__(self) -> None:
         self.facts: dict[str, str] = {}
@@ -895,7 +961,7 @@ class UserMemory:
 
 
 class CodeInterpreterTool:
-    """Auto-runs Python like ChatGPT Advanced Data Analysis."""
+    """Auto-runs Python for analysis prompts."""
 
     TRIGGER_WORDS = (
         "run", "execute", "calculate", "compute", "plot", "chart", "analyze",
@@ -911,16 +977,20 @@ class CodeInterpreterTool:
             return True
         if "```" in prompt:
             return True
+        if any(w in pl for w in ("plot", "chart", "graph", "fibonacci", "prime", "histogram")):
+            return True
         if any(w in pl for w in self.TRIGGER_WORDS) and (
             _extract_python_code(prompt) or "print(" in pl or "chart_" in pl
         ):
             return True
         return False
 
-    def run_prompt(self, prompt: str) -> tuple[str, list[dict]]:
+    def run_prompt(self, prompt: str, *, mode: str = MODE_CHAT) -> tuple[str, list[dict]]:
         code = _extract_python_code(prompt)
         if not code:
             code = self._synthesize_code(prompt)
+        if not code and mode == MODE_CODE:
+            code = prompt.strip()
         if not code:
             return "No runnable Python detected. Use ```python blocks or /run <code>.", []
         self.sandbox.ctx.canvas_ops.clear()
@@ -971,19 +1041,34 @@ class CodeInterpreterTool:
         return None
 
 
-class BitNetEngine:
+class CatrEngine:
     def __init__(self) -> None:
         self.history: list[tuple[str, str]] = []
         self.last_aha = ""
         self.last_tool_output: str | None = None
         self.last_canvas_ops: list[dict] = []
+        self.last_doc_update: bool = False
+        self.last_prompt: str = ""
+        self.last_reply: str = ""
+        self.mode: str = MODE_CHAT
+        self.custom_instructions: str = (
+            "You are a helpful local assistant. Be clear, friendly, and concise."
+        )
+        self.cancel_flag = threading.Event()
         self._multiline_buffer: list[str] = []
-        self.python_sandbox = PythonSandbox()
+        self.interpreter_ctx = InterpreterContext()
+        self.python_sandbox = PythonSandbox(self.interpreter_ctx)
+        self.code_interpreter = CodeInterpreterTool(self.python_sandbox)
         self.terminal = TerminalSandbox(self.python_sandbox)
         self.canvas = CanvasWorkspace()
+        self.canvas_doc = CanvasDocument()
+        self.files = VirtualFileStore()
+        self.memory = UserMemory()
+        self.chats = ConversationStore()
+        self.history = self.chats.active().history
         self.tokenizer = ByteTokenizer()
         self.cfg = ModelConfig()
-        self.model = BitNetLM(self.cfg, seed=1337)
+        self.model = CatrLM(self.cfg, seed=1337)
         self.prior = BigramPrior(self.tokenizer, STYLE_CORPUS)
         self.allowed_tokens = [10] + list(range(32, 127)) + [self.tokenizer.eos_id]
 
@@ -1000,7 +1085,7 @@ class BitNetEngine:
             f"- layers = {self.cfg.n_layers}\n"
             f"- heads = {self.cfg.n_heads}\n"
             f"- feed-forward = {self.cfg.ffn_dim}\n"
-            f"- ternary weights = -1, 0, 1 BitLinear\n"
+            f"- ternary weights = -1, 0, 1 TernaryLinear\n"
             f"- ternary params = {self.model.total_ternary_params():,}\n"
             f"- average nonzero ratio = {nz:.1f}%\n"
             f"- external files = none\n"
@@ -1008,56 +1093,65 @@ class BitNetEngine:
             f"- python sandbox = on (restricted)\n"
             f"- terminal tab = on\n"
             f"- canvas = on\n"
+            f"- canvas document = on\n"
+            f"- code interpreter = on\n"
+            f"- virtual files = {'on' if VIRTUAL_FILES_ENABLED else 'off'}\n"
+            f"- mode = {self.mode}\n"
         )
 
     def model_text(self) -> str:
         return (
-            "BitNet R1.1.1A Stack Profile\n"
+            f"{APP_NAME} model stack\n"
             "────────────────────────────\n"
             f"1. Byte tokenizer -> embeddings ({self.cfg.vocab_size} vocab)\n"
-            f"2. {self.cfg.n_layers} causal transformer block(s) [Flash emulation config]\n"
+            f"2. {self.cfg.n_layers} causal transformer block(s)\n"
             "3. Each block = RMSNorm -> ternary self-attention -> residual\n"
             "4. Then RMSNorm -> ternary gated MLP -> residual\n"
             "5. Final RMSNorm -> ternary LM head\n"
             "\n"
-            "This is an explicit ternary BitNet-style structure running on local bootstrap weights."
+            "Local bootstrap weights (no external checkpoint)."
         )
 
     def help_text(self) -> str:
-        return (
-            "Chat commands:\n"
-            "- /profile or /pr\n"
-            "- /model\n"
-            "- /reset\n"
-            "- /help\n"
-            "- /terminal help\n"
-            "- /python <code>  or  /run <code>\n"
-            "- /canvas demo | clear\n"
-            "\n"
-            "GUI tabs: Chat | Terminal | Python | Canvas\n"
-            "\n"
-            "Try:\n"
-            "- hello\n"
-            "- what can you do?\n"
-            "- run python: print(2 ** 10)\n"
-            "- write python code for a timer\n"
-            "- draw on canvas (or /canvas demo)\n"
-        )
+        return textwrap.dedent(
+            f"""
+            {APP_NAME} — local feature set (single file)
+
+            Chat: natural language, regenerate, stop, custom instructions
+            Modes: /mode chat | code_interpreter | canvas | analysis
+            Chats: /new  /chats  (sidebar in GUI)
+
+            Code interpreter: /run <code>  /python <code>  or paste ```python blocks
+              Auto-runs for: calculate, plot, fibonacci, primes, charts
+              Sandbox: math, json, statistics, chart_bar(), chart_line()
+
+            Canvas draw: /canvas demo | clear  |  plot a chart
+            Canvas doc: /doc show | /doc append <text>  |  "write an outline"
+
+            Files (memory only): /files list | /attach <name> <<paste>>  /file <name>
+            Memory: /memory  |  say "my name is ..."
+
+            Tools: /terminal help | /profile | /model | /reset
+            GUI tabs: Chat | Code | Canvas | Doc | Files | Memory | Terminal | Python
+
+            Try: plot a chart | fibonacci 12 | what can you do? | write python timer
+            """
+        ).strip()
 
     def _fallback_reply(self, prompt: str) -> str:
         p = prompt.strip()
         pl = p.lower()
         if not p:
-            return "Send a prompt. The GUI and R1.1.1A core are ready."
-        if any(k in pl for k in ("build", "make", "create", "design")) and any(k in pl for k in ("gui", "model", "bitnet", "transformer")):
+            return f"Send a prompt. {APP_NAME} is ready."
+        if any(k in pl for k in ("build", "make", "create", "design")) and any(k in pl for k in ("gui", "model", "transformer")):
             return (
                 "Keep the GUI on the main thread, run inference in a worker thread, "
-                "use a byte tokenizer, 2 causal BitNet blocks, RMSNorm, ternary attention, "
+                "use a byte tokenizer, 2 causal blocks, RMSNorm, ternary attention, "
                 "a gated MLP, and a ternary LM head."
             )
         if "?" in p:
             return "I can help. Give me a concrete target, a constraint, or an error line and I will tighten the answer."
-        return "R1.1.1A Core is live. Give me a concrete task and I will keep the answer compact."
+        return f"{APP_NAME} is live. Give me a concrete task and I will keep the answer compact."
 
     def _seed_prefix(self, prompt: str) -> str:
         pl = prompt.lower()
@@ -1095,6 +1189,8 @@ class BitNetEngine:
         recent_window = 24
 
         for _ in range(64):
+            if self.cancel_flag.is_set():
+                break
             bit_logits = self.model.forward_last(token_ids)
             prior_logits = self.prior.logits(token_ids[-1])
             merged = [-1e9] * self.cfg.vocab_size
@@ -1127,18 +1223,41 @@ class BitNetEngine:
         return _clean_generated(prefix + body)
 
     def _record_exchange(self, prompt: str, reply: str) -> str:
-        self.history.append(("user", prompt))
-        self.history.append(("assistant", reply))
-        if len(self.history) > 40:
-            self.history = self.history[-40:]
+        self.last_prompt = prompt
+        self.last_reply = reply
+        thread = self.chats.active()
+        thread.history.append(("user", prompt))
+        thread.history.append(("assistant", reply))
+        if len(thread.title) < 8 or thread.title == "New chat":
+            thread.title = prompt[:42] + ("…" if len(prompt) > 42 else "")
+        if len(thread.history) > 60:
+            thread.history = thread.history[-60:]
+        self.history = thread.history
         return reply
+
+    def regenerate(self) -> str:
+        if not self.last_prompt:
+            return "Nothing to regenerate yet."
+        self.cancel_flag.clear()
+        if self.history and self.history[-1][0] == "assistant":
+            self.history.pop()
+        if self.history and self.history[-1][0] == "user":
+            self.history.pop()
+        return self.generate(self.last_prompt)
 
     def generate(self, prompt: str) -> str:
         self.last_aha = ""
         self.last_tool_output = None
         self.last_canvas_ops = []
+        self.last_doc_update = False
+        self.cancel_flag.clear()
         raw = (prompt or "").strip()
         pl = raw.lower()
+        self.memory.ingest(raw)
+        if re.search(r"\bmy name is\b", pl) and self.memory.facts.get("name"):
+            return self._record_exchange(
+                prompt, f"Nice to meet you, {self.memory.facts['name']}. I'll remember that."
+            )
 
         if pl in ("/pr", "/profile"):
             return self.profile_text()
@@ -1147,11 +1266,60 @@ class BitNetEngine:
         if pl in ("/help", "/?", "help"):
             return self.help_text()
         if pl in ("/reset", "/clear"):
-            self.history.clear()
+            self.chats.active().history.clear()
+            self.history = self.chats.active().history
             self.last_aha = ""
             self._multiline_buffer.clear()
             self.canvas.clear()
             return "Conversation history cleared."
+        if pl == "/new" or pl == "/newchat":
+            self.chats.new_chat()
+            self.history = self.chats.active().history
+            return "Started a new chat."
+        if pl == "/chats":
+            lines = [f"- {title} ({cid})" for cid, title in self.chats.titles()]
+            return "Chats:\n" + ("\n".join(lines) if lines else "(none)")
+        if pl.startswith("/mode "):
+            mode = pl[6:].strip()
+            if mode in (MODE_CHAT, MODE_CODE, MODE_CANVAS, MODE_ANALYSIS):
+                self.mode = mode
+                return f"Mode set to **{mode}**."
+            return f"Unknown mode. Use: {MODE_CHAT}, {MODE_CODE}, {MODE_CANVAS}, {MODE_ANALYSIS}"
+        if pl == "/memory":
+            return self.memory.summary()
+        if pl == "/files" or pl == "/files list":
+            names = self.files.list_names()
+            return "Files: " + (", ".join(names) if names else "(none — paste with /attach)")
+        if pl.startswith("/file "):
+            name = raw[6:].strip()
+            return self.files.analyze_prompt(name)
+        if pl.startswith("/attach "):
+            rest = raw[8:].strip()
+            if " " in rest:
+                name, body = rest.split(" ", 1)
+            else:
+                name, body = rest or "paste.txt", ""
+            safe = self.files.add(name, body or "(empty)")
+            return f"Attached `{safe}` ({len(self.files.get(safe) or '')} chars)."
+        if pl.startswith("/doc "):
+            sub = pl[5:].strip()
+            if sub == "show":
+                self.last_doc_update = True
+                return "__DOC_SHOW__\n" + self.canvas_doc.text[:2000]
+            if sub.startswith("append "):
+                self.canvas_doc.append(raw[10:])
+                self.last_doc_update = True
+                return "Appended to Canvas document."
+            if sub == "clear":
+                self.canvas_doc.replace("# Canvas document\n")
+                self.last_doc_update = True
+                return "Document cleared."
+        if pl in ("/web", "/search"):
+            return "Web search is offline in this build. Use code interpreter or attach a text file."
+        if pl in ("/image", "/dalle"):
+            msg, ops = self.canvas.parse_command("demo")
+            self.last_canvas_ops = ops
+            return "Image generation is simulated with a Canvas sketch (offline). " + msg
         if pl in ("/terminal", "/term"):
             return self.terminal.help_text()
         if pl.startswith("/terminal "):
@@ -1185,8 +1353,27 @@ class BitNetEngine:
             self.last_tool_output = result.stdout + result.stderr
             return self._record_exchange(prompt, self.python_sandbox.format_result(result))
 
+        if self.mode == MODE_CANVAS or any(
+            k in pl for k in ("open canvas", "canvas doc", "write an essay", "write a draft", "outline")
+        ):
+            self.canvas_doc.text = self.canvas_doc.summarize_request(raw)
+            self.last_doc_update = True
+            return self._record_exchange(
+                prompt,
+                "Updated the **Canvas document**. Open the **Doc** tab to edit.",
+            )
+
+        if self.code_interpreter.should_auto_run(raw, self.mode):
+            msg, ops = self.code_interpreter.run_prompt(raw, mode=self.mode)
+            self.last_tool_output = msg
+            self.last_canvas_ops = ops
+            return self._record_exchange(prompt, msg)
+
         conv = ConversationalHeuristics.try_reply(raw, self.history)
         if conv is not None:
+            mem = self.memory.context_line()
+            if mem and conv:
+                conv = mem + "\n\n" + conv
             return self._record_exchange(prompt, conv)
 
         if pl in ("hi", "hello", "hey", "hi!", "hello!", "hey!"):
@@ -1195,7 +1382,7 @@ class BitNetEngine:
                 "Hi. Chat, Python sandbox, terminal, and canvas are all online.",
             )
 
-        if any(k in pl for k in ("draw", "canvas", "sketch", "plot")) and not pl.startswith("/"):
+        if any(k in pl for k in ("draw", "sketch")) and "doc" not in pl and not pl.startswith("/"):
             if "clear" in pl:
                 self.canvas.clear()
                 return self._record_exchange(prompt, "Canvas cleared.")
@@ -1243,7 +1430,7 @@ class BitNetEngine:
                 "import time\n"
                 "\n"
                 "def main() -> None:\n"
-                "    print(\"Hello from CAT R1.1.1A\")\n"
+                f"    print(\"Hello from {APP_NAME}\")\n"
                 "    for i in range(3):\n"
                 "        print(f\"tick {i}\")\n"
                 "        time.sleep(0.2)\n"
@@ -1255,11 +1442,11 @@ class BitNetEngine:
                 "Paste into the **Python** tab and click Run, or send `/run` with the code."
             )
             return self._record_exchange(prompt, snippet)
-        if any(k in pl for k in ("build", "make", "create", "design")) and any(k in pl for k in ("gui", "model", "bitnet", "transformer")):
+        if any(k in pl for k in ("build", "make", "create", "design")) and any(k in pl for k in ("gui", "model", "transformer")):
             return self._record_exchange(
                 prompt,
                 "Use a single-file build, keep tkinter as the front end, run inference in a background thread, "
-                "and structure the model as tokenizer -> embeddings -> causal BitNet blocks -> ternary LM head.",
+                "and structure the model as tokenizer -> embeddings -> causal blocks -> ternary LM head.",
             )
         reply = self._model_reply(prompt)
         body = reply
@@ -1273,7 +1460,7 @@ class BitNetEngine:
 
 
 def run_cli() -> None:
-    engine = BitNetEngine()
+    engine = CatrEngine()
     print(f"{MODEL_NAME} CLI. Type 'exit' to quit.\n")
     while True:
         try:
@@ -1295,13 +1482,13 @@ def run_gui() -> None:
     import tkinter as tk
     from tkinter import font, messagebox, scrolledtext, ttk
 
-    engine = BitNetEngine()
+    engine = CatrEngine()
 
     root = tk.Tk()
     root.title(WINDOW_TITLE)
-    root.geometry("1180x720")
+    root.geometry("1320x760")
     root.configure(bg="#050505")
-    root.minsize(900, 560)
+    root.minsize(1020, 600)
 
     fonts = {
         "mono": font.Font(family="Consolas" if os.name != "nt" else "Courier New", size=11),
@@ -1310,13 +1497,71 @@ def run_gui() -> None:
         "small": font.Font(family="Consolas" if os.name != "nt" else "Courier New", size=9),
     }
 
-    shell = tk.PanedWindow(root, orient="horizontal", bg="#050505", sashwidth=6, sashrelief="flat")
-    shell.pack(fill="both", expand=True)
+    outer = tk.PanedWindow(root, orient="horizontal", bg="#050505", sashwidth=6, sashrelief="flat")
+    outer.pack(fill="both", expand=True)
 
-    chat_frame = tk.Frame(shell, bg="#050505")
-    tools_frame = tk.Frame(shell, bg="#050505")
-    shell.add(chat_frame, minsize=420)
-    shell.add(tools_frame, minsize=340)
+    sidebar = tk.Frame(outer, bg="#0d0d0d", width=200)
+    center = tk.Frame(outer, bg="#050505")
+    tools_frame = tk.Frame(outer, bg="#050505")
+    outer.add(sidebar, minsize=160)
+    outer.add(center, minsize=440)
+    outer.add(tools_frame, minsize=320)
+
+    tk.Label(sidebar, text=APP_NAME, bg="#0d0d0d", fg="#00d9ff", font=fonts["bold"]).pack(pady=(12, 4))
+    chat_list = tk.Listbox(sidebar, bg="#111", fg="#ccc", font=fonts["small"], height=14, relief="flat")
+    chat_list.pack(fill="both", expand=True, padx=8, pady=4)
+
+    def refresh_chat_list() -> None:
+        chat_list.delete(0, "end")
+        for cid, title in engine.chats.titles():
+            mark = "• " if cid == engine.chats.active_id else "  "
+            chat_list.insert("end", mark + title)
+
+    def on_new_chat() -> None:
+        engine.chats.new_chat()
+        engine.history = engine.chats.active().history
+        refresh_chat_list()
+        chat.config(state="normal")
+        chat.delete("1.0", "end")
+        chat.config(state="disabled")
+        log_line("SYSTEM", "New chat started.")
+
+    def on_pick_chat(_evt=None) -> None:
+        sel = chat_list.curselection()
+        if not sel:
+            return
+        label = chat_list.get(sel[0]).replace("• ", "", 1).strip()
+        for cid, title in engine.chats.titles():
+            if title == label:
+                engine.chats.active_id = cid
+                engine.history = engine.chats.active().history
+                break
+
+    tk.Button(
+        sidebar, text="+ New chat", command=on_new_chat, bg="#222", fg="#00d9ff", font=fonts["small"], relief="flat"
+    ).pack(fill="x", padx=8, pady=4)
+    tk.Label(sidebar, text="Mode", bg="#0d0d0d", fg="#666", font=fonts["small"]).pack(anchor="w", padx=10)
+    mode_var = tk.StringVar(value=engine.mode)
+    mode_menu = tk.OptionMenu(
+        sidebar,
+        mode_var,
+        MODE_CHAT,
+        MODE_CODE,
+        MODE_CANVAS,
+        MODE_ANALYSIS,
+    )
+    mode_menu.config(bg="#222", fg="#00d9ff", font=fonts["small"], highlightthickness=0)
+    mode_menu["menu"].config(bg="#222", fg="#00d9ff")
+    mode_menu.pack(fill="x", padx=8, pady=2)
+
+    def on_mode_change(*_a: object) -> None:
+        engine.mode = mode_var.get()
+
+    mode_var.trace_add("write", on_mode_change)
+    refresh_chat_list()
+    chat_list.bind("<<ListboxSelect>>", on_pick_chat)
+
+    chat_frame = center
 
     chat = scrolledtext.ScrolledText(
         chat_frame,
@@ -1345,12 +1590,74 @@ def run_gui() -> None:
     notebook = ttk.Notebook(tools_frame)
     notebook.pack(fill="both", expand=True, padx=4, pady=4)
 
+    tab_code = tk.Frame(notebook, bg="#050505")
     tab_terminal = tk.Frame(notebook, bg="#050505")
     tab_python = tk.Frame(notebook, bg="#050505")
     tab_canvas = tk.Frame(notebook, bg="#050505")
+    tab_doc = tk.Frame(notebook, bg="#050505")
+    tab_files = tk.Frame(notebook, bg="#050505")
+    tab_memory = tk.Frame(notebook, bg="#050505")
+    notebook.add(tab_code, text="Code")
+    notebook.add(tab_canvas, text="Canvas")
+    notebook.add(tab_doc, text="Doc")
+    notebook.add(tab_files, text="Files")
+    notebook.add(tab_memory, text="Memory")
     notebook.add(tab_terminal, text="Terminal")
     notebook.add(tab_python, text="Python")
-    notebook.add(tab_canvas, text="Canvas")
+
+    code_info = scrolledtext.ScrolledText(
+        tab_code, bg="#0a0a0a", fg="#aaa", font=fonts["small"], height=14, state="disabled", wrap="word"
+    )
+    code_info.pack(fill="both", expand=True, padx=4, pady=4)
+    code_info.config(state="normal")
+    code_info.insert(
+        "end",
+        "Code interpreter\n"
+        "- Auto-runs ```python blocks\n"
+        "- chart_bar(labels, values)\n"
+        "- chart_line(xs, ys)\n"
+        "- Mode: code_interpreter\n",
+    )
+    code_info.config(state="disabled")
+
+    doc_text = scrolledtext.ScrolledText(
+        tab_doc, bg="#0f0f14", fg="#e8e8e8", font=fonts["mono"], wrap="word"
+    )
+    doc_text.pack(fill="both", expand=True, padx=4, pady=4)
+    doc_text.insert("1.0", engine.canvas_doc.text)
+
+    files_list = tk.Listbox(tab_files, bg="#111", fg="#ccc", font=fonts["small"], height=6)
+    files_list.pack(fill="x", padx=4, pady=4)
+    file_preview = scrolledtext.ScrolledText(
+        tab_files, bg="#0a0a0a", fg="#888", font=fonts["small"], height=10, state="disabled", wrap="word"
+    )
+    file_preview.pack(fill="both", expand=True, padx=4, pady=4)
+    file_paste = scrolledtext.ScrolledText(tab_files, bg="#111", fg="#ccc", font=fonts["small"], height=4)
+    file_paste.pack(fill="x", padx=4, pady=2)
+
+    mem_view = scrolledtext.ScrolledText(
+        tab_memory, bg="#0a0a0a", fg="#ffd54f", font=fonts["small"], height=12, state="disabled", wrap="word"
+    )
+    mem_view.pack(fill="both", expand=True, padx=4, pady=4)
+
+    def refresh_files() -> None:
+        files_list.delete(0, "end")
+        for n in engine.files.list_names():
+            files_list.insert("end", n)
+
+    def attach_paste() -> None:
+        body = file_paste.get("1.0", "end").strip()
+        if not body:
+            return
+        name = engine.files.add("paste.txt", body)
+        file_paste.delete("1.0", "end")
+        refresh_files()
+        term_log(f"[files] attached {name}\n")
+
+    refresh_files()
+    tk.Button(
+        tab_files, text="Attach paste", command=attach_paste, bg="#222", fg="#00d9ff", font=fonts["small"], relief="flat"
+    ).pack(pady=4)
 
     term_out = scrolledtext.ScrolledText(
         tab_terminal,
@@ -1375,7 +1682,7 @@ def run_gui() -> None:
         wrap="none",
     )
     py_code.pack(fill="both", expand=True, padx=4, pady=4)
-    py_code.insert("1.0", "print('CAT R1 sandbox ready')\nprint(2 ** 10)")
+    py_code.insert("1.0", f"print('{APP_NAME} sandbox ready')\nprint(2 ** 10)")
 
     py_out = scrolledtext.ScrolledText(
         tab_python,
@@ -1492,6 +1799,30 @@ def run_gui() -> None:
 
     term_log(engine.terminal.help_text() + "\n")
 
+    toolbar = tk.Frame(chat_frame, bg="#050505")
+    toolbar.pack(fill="x", padx=10, pady=(6, 0))
+
+    def do_stop() -> None:
+        engine.cancel_flag.set()
+        status.config(text="Stop requested…")
+
+    def do_regen() -> None:
+        if not engine.last_prompt:
+            return
+        log_line("SYSTEM", "Regenerating…")
+        status.config(text="Regenerating…")
+
+        def worker() -> None:
+            resp = engine.regenerate()
+            root.after(0, lambda: finish_reply(resp))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    for label, cmd in [("Stop", do_stop), ("Regenerate", do_regen)]:
+        tk.Button(
+            toolbar, text=label, command=cmd, bg="#222", fg="#00d9ff", font=fonts["small"], relief="flat"
+        ).pack(side="left", padx=2)
+
     inp = tk.Frame(chat_frame, bg="#050505")
     inp.pack(fill="x", padx=10, pady=5)
 
@@ -1529,7 +1860,7 @@ def run_gui() -> None:
 
     status = tk.Label(
         root,
-        text=f"Ready | files=off | py3.14 | {BOT_NAME}=online",
+        text=f"Ready | files=off | py3.14 | {APP_NAME}",
         bg="#050505",
         fg="#666",
         font=fonts["small"],
@@ -1558,11 +1889,56 @@ def run_gui() -> None:
             chat.config(state="disabled")
             chat.see("end")
 
-    log_line("SYSTEM", f"{BOT_NAME} ONLINE")
-    log_line(
-        "SYSTEM",
-        "Chat + Terminal sandbox + Python interpreter + Canvas | files=off | /help",
-    )
+    log_line("SYSTEM", f"{APP_NAME} online")
+    log_line("SYSTEM", "Sidebar: chats & mode | Tools: Code, Canvas, Doc, Files, Memory | /help")
+
+    def finish_reply(resp: str, elapsed_ms: float = 0.0) -> None:
+        if resp == "__TERMINAL_CLEAR__":
+            term_out.config(state="normal")
+            term_out.delete("1.0", "end")
+            term_out.config(state="disabled")
+            status.config(text=f"Ready | {elapsed_ms:.1f} ms")
+            return
+        if resp.startswith("__DOC_SHOW__"):
+            doc_text.delete("1.0", "end")
+            doc_text.insert("1.0", resp.split("\n", 1)[1])
+            notebook.select(tab_doc)
+        if engine.last_doc_update:
+            doc_text.delete("1.0", "end")
+            doc_text.insert("1.0", engine.canvas_doc.text)
+            notebook.select(tab_doc)
+        if engine.last_tool_output:
+            term_log(engine.last_tool_output)
+            code_info.config(state="normal")
+            code_info.delete("1.0", "end")
+            code_info.insert("end", engine.last_tool_output + "\n")
+            code_info.config(state="disabled")
+            notebook.select(tab_code)
+        if engine.last_canvas_ops:
+            engine.canvas.ops[:] = engine.last_canvas_ops
+            _render_canvas(canvas_widget, engine.canvas.ops)
+            notebook.select(tab_canvas)
+        mem_view.config(state="normal")
+        mem_view.delete("1.0", "end")
+        mem_view.insert("end", engine.memory.summary())
+        mem_view.config(state="disabled")
+        refresh_chat_list()
+        if "```" in resp:
+            parts = resp.split("```")
+            for i, part in enumerate(parts):
+                if not part or part.startswith("__DOC_SHOW__"):
+                    continue
+                body = part
+                if i % 2 == 1:
+                    body = body.lstrip()
+                    if body.lower().startswith("python"):
+                        body = body[6:].lstrip("\n\r")
+                log_line(BOT_NAME, body, "code" if i % 2 == 1 else None)
+        elif not resp.startswith("__DOC_SHOW__"):
+            log_line(BOT_NAME, resp, None)
+        if engine.last_aha:
+            log_line("AHA", f"Aha: {engine.last_aha}", "aha")
+        status.config(text=f"Ready | {elapsed_ms:.1f} ms | mode={engine.mode}")
 
     def send() -> None:
         msg = entry.get().strip()
@@ -1570,7 +1946,7 @@ def run_gui() -> None:
             return
         entry.delete(0, "end")
         log_line("YOU", msg, "user")
-        status.config(text="Running local BitNet forward pass...")
+        status.config(text=f"Running {APP_NAME} forward pass...")
 
         def worker() -> None:
             started = time.perf_counter()
@@ -1582,39 +1958,7 @@ def run_gui() -> None:
             aha = engine.last_aha
             elapsed_ms = (time.perf_counter() - started) * 1000.0
 
-            def show() -> None:
-                if resp == "__TERMINAL_CLEAR__":
-                    term_out.config(state="normal")
-                    term_out.delete("1.0", "end")
-                    term_out.config(state="disabled")
-                    status.config(text=f"Ready | {elapsed_ms:.1f} ms | terminal cleared")
-                    return
-                if engine.last_tool_output:
-                    term_log(engine.last_tool_output)
-                if engine.last_canvas_ops:
-                    engine.canvas.ops[:] = engine.last_canvas_ops
-                    _render_canvas(canvas_widget, engine.canvas.ops)
-                    notebook.select(tab_canvas)
-                if "```" in resp:
-                    parts = resp.split("```")
-                    for i, part in enumerate(parts):
-                        if not part:
-                            continue
-                        body = part
-                        if i % 2 == 1:
-                            body = body.lstrip()
-                            if body.lower().startswith("python"):
-                                body = body[6:].lstrip("\n\r")
-                        log_line(BOT_NAME, body, "code" if i % 2 == 1 else None)
-                else:
-                    log_line(BOT_NAME, resp, None)
-                if aha:
-                    log_line("AHA", f"Aha: {aha}", "aha")
-                status.config(
-                    text=f"Ready | {elapsed_ms:.1f} ms | sandbox+canvas | bitnet=online",
-                )
-
-            root.after(0, show)
+            root.after(0, lambda: finish_reply(resp, elapsed_ms))
 
         threading.Thread(target=worker, daemon=True).start()
 
